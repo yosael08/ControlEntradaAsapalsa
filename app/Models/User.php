@@ -11,12 +11,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 // Agregamos 'rol' dentro del atributo Fillable de Laravel 11
-#[Fillable(['name', 'email', 'password', 'rol'])]
+#[Fillable(['name', 'email', 'password', 'rol', 'username'])] // <-- Agregamos username
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+
+    protected $dateFormat = 'Ymd H:i:s';
 
     /**
      * Get the attributes that should be cast.

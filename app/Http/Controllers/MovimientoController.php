@@ -8,13 +8,11 @@ use App\Models\Conductor;
 use App\Models\Productor;
 use App\Models\Origen;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 
 class MovimientoController extends Controller
 {
     /**
-     * 1. PANTALLA VIGILANCIA: Muestra dos tablas.
-     * Vehículos que están dentro del plantel y vehículos ya despachados.
+     * Muestra la pantalla principal de Entrada a Plantel (Doble Tabla)
      */
     public function index()
     {
@@ -24,7 +22,7 @@ class MovimientoController extends Controller
             ->orderBy('HoraEntrada', 'desc')
             ->get();
 
-        // Vehículos que ya terminaron y salieron
+        // Vehículos que ya terminaron y salieron del plantel
         $vehiculosDespachados = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
             ->where('Estado', 'Despachado')
             ->orderBy('HoraEntrada', 'desc')
@@ -34,57 +32,37 @@ class MovimientoController extends Controller
     }
 
     /**
-     * 2. PANTALLA RAMPA: El operador solo ve los vehículos que están adentro
-     * y listos para procesar.
+     * Muestra el formulario para autorizar la entrada de un vehículo desde la cola
      */
-    public function rampa()
+    public function create(Request $request)
     {
-        $enRampa = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
-            ->whereIn('Estado', ['En Plantel', 'Descargando'])
-            ->orderBy('HoraEntrada', 'asc') // El primero que entra es el primero en atenderse
-            ->get();
+        $tipos = TipoVehiculo::all();
+        $conductores = Conductor::all();
+        $productores = Productor::all();
+        $origenes = Origen::all();
 
-        return view('movimientos.rampa', compact('enRampa'));
+        // Si viene un ID desde la cola de espera, lo capturamos opcionalmente
+        $idCola = $request->query('id_cola');
+
+        return view('movimientos.create', compact('tipos', 'conductores', 'productores', 'origenes', 'idCola'));
     }
 
     /**
-     * 3. ACCIÓN: Cambiar estado a "Descargando"
+     * Guarda la entrada oficial del vehículo al plantel (Estado: 'En Plantel')
      */
-    public function descargar($id)
-    {
-        $movimiento = Movimiento::findOrFail($id);
-        $movimiento->update(['Estado' => 'Descargando']);
-
-        return redirect()->route('movimientos.rampa')->with('exito', 'El vehículo ahora está en proceso de descarga.');
-    }
-
-    /**
-     * 4. ACCIÓN: Cambiar estado a "Despachado"
-     */
-    public function despachar($id)
-    {
-        $movimiento = Movimiento::findOrFail($id);
-        $movimiento->update(['Estado' => 'Despachado']);
-
-        return redirect()->route('movimientos.rampa')->with('exito', 'Vehículo despachado exitosamente.');
-    }
-
-    // Dejamos la función store lista para cuando simulemos el ingreso desde la cola
     public function store(Request $request)
     {
         $request->validate([
-            'Placa' => 'required|string|max:50',
-            'ID_TipoVehiculo' => 'required|integer',
-            'ID_NombreConductor' => 'required|integer',
-            'ID_NombreProductor' => 'required|integer',
-            'ID_Origen' => 'required|integer',
+            'Placa' => 'required',
+            'ID_TipoVehiculo' => 'required',
+            'ID_NombreConductor' => 'required',
+            'ID_NombreProductor' => 'required',
+            'ID_Origen' => 'required',
         ]);
 
         Movimiento::create([
-            'HoraEntrada' => Carbon::now(),
             'Placa' => $request->Placa,
-            'ISCC' => $request->has('ISCC'),
-            'Estado' => 'En Plantel', // Nace por defecto adentro del plantel
+            'Estado' => 'En Plantel', // Nace listo para que rampa lo procese
             'ID_TipoVehiculo' => $request->ID_TipoVehiculo,
             'ID_NombreConductor' => $request->ID_NombreConductor,
             'ID_NombreProductor' => $request->ID_NombreProductor,
@@ -92,6 +70,44 @@ class MovimientoController extends Controller
             'Usuario_Autoriza' => 1
         ]);
 
-        return redirect()->route('movimientos.index')->with('exito', 'Entrada al plantel registrada con éxito.');
+        return redirect()->route('movimientos.index')->with('exito', 'Vehículo autorizado con éxito');
+    }
+
+    /**
+     * 1. Muestra el panel principal operativo de Rampa
+     */
+    public function rampaIndex()
+    {
+        // Trae solo las unidades que están físicamente en espera o en proceso de descarga
+        $vehiculosEnRampa = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
+            ->whereIn('Estado', ['En Plantel', 'Descargando'])
+            ->orderBy('HoraEntrada', 'asc')
+            ->get();
+
+        return view('movimientos.rampa', compact('vehiculosEnRampa'));
+    }
+
+    /**
+     * 2. Cambia el estado del vehículo de "En Plantel" a "Descargando"
+     */
+    public function iniciarDescarga($id)
+    {
+        $movimiento = Movimiento::findOrFail($id);
+        $movimiento->Estado = 'Descargando';
+        $movimiento->save();
+
+        return redirect()->route('movimientos.rampa')->with('exito', 'Descarga iniciada para la placa ' . $movimiento->Placa);
+    }
+
+    /**
+     * 3. Cambia el estado de "Descargando" a "Despachado" (Salida definitiva del plantel)
+     */
+    public function despacharVehiculo($id)
+    {
+        $movimiento = Movimiento::findOrFail($id);
+        $movimiento->Estado = 'Despachado';
+        $movimiento->save();
+
+        return redirect()->route('movimientos.rampa')->with('exito', 'Vehículo despachado y liberado con éxito.');
     }
 }

@@ -1,39 +1,46 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
-
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ColaEsperaController;
-
-// Rutas para la Cola de Espera
-Route::get('/cola-espera', [ColaEsperaController::class, 'index'])->name('cola-espera.index');
-Route::get('/cola-espera/nuevo', [ColaEsperaController::class, 'create'])->name('cola-espera.create');
-Route::post('/cola-espera/guardar', [ColaEsperaController::class, 'store'])->name('cola-espera.store');
-
 use App\Http\Controllers\MovimientoController;
 
-// Rutas para los Movimientos (Entrada a Plantel y Rampa)
-Route::get('/movimientos', [MovimientoController::class, 'index'])->name('movimientos.index');
-Route::get('/movimientos/rampa', [MovimientoController::class, 'rampa'])->name('movimientos.rampa');
-Route::patch('/movimientos/{id}/descargar', [MovimientoController::class, 'descargar'])->name('movimientos.descargar');
-Route::patch('/movimientos/{id}/despachar', [MovimientoController::class, 'despachar'])->name('movimientos.despachar');
+// --- RUTA RAÍZ INTELIGENTE ---
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('cola-espera.index');
+    }
+    return redirect()->route('login');
+});
 
-use App\Http\Controllers\AuthController;
+// --- RUTAS PÚBLICAS (AUTENTICACIÓN) ---
+Route::middleware(['guest'])->group(function () {
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login']);
+});
 
-// Rutas Públicas de Autenticación
-Route::get('/login', [AuthController::class, 'mostrarLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-
-// Rutas Protegidas (Deben estar logueados para entrar)
+// --- RUTAS PROTEGIDAS (SOLO USUARIOS AUTENTICADOS) ---
 Route::middleware(['auth'])->group(function () {
 
-    // Gestión de usuarios (Solo para el Admin)
-    Route::get('/usuarios/crear', [AuthController::class, 'mostrarRegistro'])->name('usuarios.create');
-    Route::post('/usuarios/guardar', [AuthController::class, 'registrar'])->name('usuarios.store');
+    // Cierre de Sesión
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // Aquí abajo quedan tus rutas de Cola y Movimientos que ya teníamos protegidas
+    // REGISTRO DE EMPLEADOS (Nombre corregido a usuarios.create para solucionar la caída)
+    Route::get('/usuarios/registrar', [AuthController::class, 'showRegistrar'])->name('usuarios.create');
+    Route::post('/usuarios/registrar', [AuthController::class, 'registrar'])->name('usuarios.store');
+
+    // MÓDULO DE COLA DE ESPERA
+    Route::get('/cola-espera', [ColaEsperaController::class, 'index'])->name('cola-espera.index');
+    Route::get('/cola-espera/crear', [ColaEsperaController::class, 'create'])->name('cola-espera.create');
+    Route::post('/cola-espera/guardar', [ColaEsperaController::class, 'store'])->name('cola-espera.store');
+
+    // MÓDULO DE ENTRADAS A PLANTA (HISTORIAL)
+    Route::get('/movimientos', [MovimientoController::class, 'index'])->name('movimientos.index');
+    Route::get('/movimientos/autorizar', [MovimientoController::class, 'create'])->name('movimientos.create');
+    Route::post('/movimientos/guardar', [MovimientoController::class, 'store'])->name('movimientos.store');
+
+    // MÓDULO OPERATIVO DE RAMPA
+    Route::get('/movimientos/rampa', [MovimientoController::class, 'rampaIndex'])->name('movimientos.rampa');
+    Route::post('/movimientos/rampa/descargar/{id}', [MovimientoController::class, 'iniciarDescarga'])->name('movimientos.descargar');
+    Route::post('/movimientos/rampa/despachar/{id}', [MovimientoController::class, 'despacharVehiculo'])->name('movimientos.despachar');
 });

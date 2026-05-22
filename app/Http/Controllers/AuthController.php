@@ -3,92 +3,102 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // Muestra el formulario de Login
-    public function mostrarLogin()
+    /**
+     * Muestra el formulario de inicio de sesión
+     */
+    public function showLogin()
     {
-        if (Auth::check()) {
-            return $this->redireccionarPorRol();
-        }
         return view('auth.login');
     }
 
-    // Procesa el inicio de sesión
+    /**
+     * Procesa el intento de autenticación (Login por Username plano)
+     */
     public function login(Request $request)
     {
-        $credenciales = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+        $credentials = $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        if (Auth::attempt($credenciales)) {
+        // Intentar autenticar con el nombre de usuario plano y contraseña
+        if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return $this->redireccionarPorRol();
-        }
 
-        return back()->withErrors([
-            'email' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
-        ])->onlyInput('email');
-    }
+            // Redirección inteligente según el rol asignado
+            $user = Auth::user();
+            if (in_array($user->rol, ['admin', 'vigilante'])) {
+                return redirect()->route('cola-espera.index');
+            }
 
-    // Redirección inteligente según el rol del empleado
-    private function redireccionarPorRol()
-    {
-        $rol = Auth::user()->rol;
-
-        if ($rol === 'rampa') {
             return redirect()->route('movimientos.rampa');
         }
 
-        // Si es vigilante o admin, van por defecto a la cola de espera
-        return redirect()->route('cola-espera.index');
+        return back()->withErrors([
+            'username' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
+        ])->onlyInput('username');
     }
 
-    // Cerrar Sesión
+    /**
+     * Muestra el formulario para registrar un nuevo empleado
+     * Corrección adaptativa: Busca todas las variantes de nombres posibles para evitar el error 500
+     */
+    /**
+     * Muestra el formulario para registrar un nuevo empleado
+     * Corregido apuntando al nombre exacto de tu estructura de archivos
+     */
+    public function showRegistrar()
+    {
+        // Apunta directamente a resources/views/auth/registrar-usuario.blade.php
+        if (view()->exists('auth.registrar-usuario')) {
+            return view('auth.registrar-usuario');
+        }
+
+        // Respaldo por seguridad si cambia en el futuro
+        if (view()->exists('auth.register')) {
+            return view('auth.register');
+        }
+
+        abort(404, "No se encontró la vista del formulario de registro.");
+    }
+
+    /**
+     * Almacena el nuevo empleado en la base de datos SQL Server
+     */
+    public function registrar(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:users',
+            'password' => 'required|string|min:6|confirmed',
+            'rol' => 'required|string|in:admin,vigilante,rampa',
+        ]);
+
+        User::create([
+            'name' => $request->name,
+            'username' => $request->username,
+            'password' => Hash::make($request->password), // Encriptación segura Bcrypt
+            'rol' => $request->rol,
+        ]);
+
+        return redirect()->route('cola-espera.index')->with('exito', '¡Empleado registrado correctamente!');
+    }
+
+    /**
+     * Cierra la sesión activa de forma segura
+     */
     public function logout(Request $request)
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect()->route('login');
-    }
-
-    // PANTALLA ADMIN: Formulario para registrar usuarios nuevos
-    public function mostrarRegistro()
-    {
-        // Guardura de seguridad extrema: solo el admin entra aquí
-        if (Auth::user()->rol !== 'admin') {
-            abort(403, 'No tienes permisos de Administrador para crear usuarios.');
-        }
-        return view('auth.registrar-usuario');
-    }
-
-    // PANTALLA ADMIN: Guarda el nuevo usuario en la BD
-    public function registrar(Request $request)
-    {
-        if (Auth::user()->rol !== 'admin') {
-            abort(403);
-        }
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6|confirmed',
-            'rol' => 'required|in:admin,vigilante,rampa',
-        ]);
-
-        User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'rol' => $request->rol,
-        ]);
-
-        return redirect()->route('cola-espera.index')->with('exito', 'Nuevo usuario creado correctamente.');
     }
 }

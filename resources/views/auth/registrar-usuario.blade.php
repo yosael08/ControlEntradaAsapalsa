@@ -26,22 +26,21 @@
             <input type="text" name="name" id="name" value="{{ old('name') }}" required placeholder="Ej: Juan Pérez"
                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
         </div>
+<div>
+    <label for="username" class="block text-sm font-semibold text-gray-700 mb-1">Nombre de Usuario (Para loguearse)</label>
+    <input type="text" name="username" id="username" required placeholder="Ej: rampa_turno1"
+           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+</div>
 
-        <div>
-            <label for="email" class="block text-sm font-semibold text-gray-700 mb-1">Correo Electrónico (Usuario)</label>
-            <input type="email" name="email" id="email" value="{{ old('email') }}" required placeholder="usuario@asapalsa.com"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
-        </div>
-
-        <div>
-            <label for="rol" class="block text-sm font-semibold text-gray-700 mb-1">Rol / Puesto de Trabajo</label>
-            <select name="rol" id="rol" required class="w-full px-4 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-green-500 outline-none">
-                <option value="">-- Seleccione un Rol --</option>
-                <option value="vigilante">Vigilante (Portón Exterior / Cola)</option>
-                <option value="rampa">Operador de Rampa (Descarga)</option>
-                <option value="admin">Administrador del Sistema</option>
-            </select>
-        </div>
+       <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Rol del Sistema</label>
+    <select name="rol" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" required>
+        <option value="" disabled selected>-- Selecciona un Rol --</option>
+        <option value="admin">Administrador (Acceso Total)</option>
+        <option value="vigilante">Vigilante (Portón / Cola Espera)</option>
+        <option value="rampa">Operador de Rampa (Descargas)</option>
+    </select>
+</div>
 
         <div>
             <label for="password" class="block text-sm font-semibold text-gray-700 mb-1">Contraseña Temporal</label>

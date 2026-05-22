@@ -25,7 +25,7 @@ Route::middleware(['auth'])->group(function () {
     // Cierre de Sesión
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // REGISTRO DE EMPLEADOS (Nombre corregido a usuarios.create para solucionar la caída)
+    // Registro de Nuevos Empleados (Accesible por Admin)
     Route::get('/usuarios/registrar', [AuthController::class, 'showRegistrar'])->name('usuarios.create');
     Route::post('/usuarios/registrar', [AuthController::class, 'registrar'])->name('usuarios.store');
 
@@ -34,10 +34,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/cola-espera/crear', [ColaEsperaController::class, 'create'])->name('cola-espera.create');
     Route::post('/cola-espera/guardar', [ColaEsperaController::class, 'store'])->name('cola-espera.store');
 
-    // MÓDULO DE ENTRADAS A PLANTA (HISTORIAL)
+    // MÓDULO DE ENTRADAS A PLANTA (DAR ACCESO Y LOGÍSTICA GENERAL)
     Route::get('/movimientos', [MovimientoController::class, 'index'])->name('movimientos.index');
-    Route::get('/movimientos/autorizar', [MovimientoController::class, 'create'])->name('movimientos.create');
-    Route::post('/movimientos/guardar', [MovimientoController::class, 'store'])->name('movimientos.store');
+    Route::post('/movimientos/dar-acceso/{id}', [MovimientoController::class, 'darAcceso'])->name('movimientos.darAcceso');
 
     // MÓDULO OPERATIVO DE RAMPA
     Route::get('/movimientos/rampa', [MovimientoController::class, 'rampaIndex'])->name('movimientos.rampa');

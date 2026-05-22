@@ -13,33 +13,63 @@ use Carbon\Carbon;
 class MovimientoController extends Controller
 {
     /**
-     * 1. Muestra el historial de movimientos (Entradas a Planta).
+     * 1. PANTALLA VIGILANCIA: Muestra dos tablas.
+     * Vehículos que están dentro del plantel y vehículos ya despachados.
      */
     public function index()
     {
-        $movimientos = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
+        // Vehículos actualmente dentro (En Plantel o Descargando)
+        $vehiculosDentro = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
+            ->whereIn('Estado', ['En Plantel', 'Descargando'])
             ->orderBy('HoraEntrada', 'desc')
             ->get();
 
-        return view('movimientos.index', compact('movimientos'));
+        // Vehículos que ya terminaron y salieron
+        $vehiculosDespachados = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
+            ->where('Estado', 'Despachado')
+            ->orderBy('HoraEntrada', 'desc')
+            ->get();
+
+        return view('movimientos.index', compact('vehiculosDentro', 'vehiculosDespachados'));
     }
 
     /**
-     * 2. Muestra el formulario para autorizar la entrada formal desde la cola.
+     * 2. PANTALLA RAMPA: El operador solo ve los vehículos que están adentro
+     * y listos para procesar.
      */
-    public function create()
+    public function rampa()
     {
-        $tiposVehiculos = TipoVehiculo::all();
-        $conductores = Conductor::all();
-        $productores = Productor::all();
-        $origenes = Origen::all();
+        $enRampa = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
+            ->whereIn('Estado', ['En Plantel', 'Descargando'])
+            ->orderBy('HoraEntrada', 'asc') // El primero que entra es el primero en atenderse
+            ->get();
 
-        return view('movimientos.create', compact('tiposVehiculos', 'conductores', 'productores', 'origenes'));
+        return view('movimientos.rampa', compact('enRampa'));
     }
 
     /**
-     * 3. Guarda la entrada oficial en la tabla MOVIMIENTOS.
+     * 3. ACCIÓN: Cambiar estado a "Descargando"
      */
+    public function descargar($id)
+    {
+        $movimiento = Movimiento::findOrFail($id);
+        $movimiento->update(['Estado' => 'Descargando']);
+
+        return redirect()->route('movimientos.rampa')->with('exito', 'El vehículo ahora está en proceso de descarga.');
+    }
+
+    /**
+     * 4. ACCIÓN: Cambiar estado a "Despachado"
+     */
+    public function despachar($id)
+    {
+        $movimiento = Movimiento::findOrFail($id);
+        $movimiento->update(['Estado' => 'Despachado']);
+
+        return redirect()->route('movimientos.rampa')->with('exito', 'Vehículo despachado exitosamente.');
+    }
+
+    // Dejamos la función store lista para cuando simulemos el ingreso desde la cola
     public function store(Request $request)
     {
         $request->validate([
@@ -53,14 +83,15 @@ class MovimientoController extends Controller
         Movimiento::create([
             'HoraEntrada' => Carbon::now(),
             'Placa' => $request->Placa,
-            'ISCC' => $request->has('ISCC'), // Guarda true si marcaron la casilla, false si no
+            'ISCC' => $request->has('ISCC'),
+            'Estado' => 'En Plantel', // Nace por defecto adentro del plantel
             'ID_TipoVehiculo' => $request->ID_TipoVehiculo,
             'ID_NombreConductor' => $request->ID_NombreConductor,
             'ID_NombreProductor' => $request->ID_NombreProductor,
             'ID_Origen' => $request->ID_Origen,
-            'Usuario_Autoriza' => 1 // Temporal hasta el Login
+            'Usuario_Autoriza' => 1
         ]);
 
-        return redirect()->route('movimientos.index')->with('exito', 'Entrada a planta registrada con éxito.');
+        return redirect()->route('movimientos.index')->with('exito', 'Entrada al plantel registrada con éxito.');
     }
 }

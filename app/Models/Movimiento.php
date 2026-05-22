@@ -9,17 +9,17 @@ class Movimiento extends Model
 {
     protected $table = 'MOVIMIENTOS';
 
-    protected $fillable = [
+   protected $fillable = [
         'HoraEntrada',
         'Placa',
         'ISCC',
+        'Estado',
         'ID_TipoVehiculo',
         'ID_NombreConductor',
         'ID_NombreProductor',
         'ID_Origen',
         'Usuario_Autoriza'
     ];
-
     // Aseguramos que Laravel trate este campo como booleano verdadero/falso automáticamente
     protected $casts = [
         'ISCC' => 'boolean',

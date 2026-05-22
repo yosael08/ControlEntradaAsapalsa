@@ -9,18 +9,21 @@ class ColaEspera extends Model
 {
     protected $table = 'COLA_ESPERA';
 
+    // BLINDAJE CRÍTICO: Elimina los milisegundos y guiones para que SQL Server acepte los updates de la cola
+    protected $dateFormat = 'Ymd H:i:s';
+
     protected $fillable = [
-        'fecha_registro',
         'Placa',
         'Estado',
         'ID_TipoVehiculo',
         'ID_NombreConductor',
         'ID_NombreProductor',
         'ID_Origen',
-        'Usuario_Registro'
+        'ISCC',
+        'Usuario_Registra'
     ];
 
-    // --- RELACIONES DEL DIAGRAMA ---
+    // --- RELACIONES ---
 
     public function tipoVehiculo(): BelongsTo
     {
@@ -42,8 +45,8 @@ class ColaEspera extends Model
         return $this->belongsTo(Origen::class, 'ID_Origen', 'id');
     }
 
-    public function usuario(): BelongsTo
+    public function usuarioRegistra(): BelongsTo
     {
-        return $this->belongsTo(Usuario::class, 'Usuario_Registro', 'id');
+        return $this->belongsTo(User::class, 'Usuario_Registra', 'id');
     }
 }

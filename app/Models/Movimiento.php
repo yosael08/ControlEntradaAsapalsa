@@ -9,7 +9,10 @@ class Movimiento extends Model
 {
     protected $table = 'MOVIMIENTOS';
 
-   protected $fillable = [
+    // Formato ISO universal sin guiones para forzar la compatibilidad de fechas con SQL Server
+    protected $dateFormat = 'Ymd H:i:s';
+
+    protected $fillable = [
         'HoraEntrada',
         'Placa',
         'ISCC',
@@ -20,6 +23,7 @@ class Movimiento extends Model
         'ID_Origen',
         'Usuario_Autoriza'
     ];
+
     // Aseguramos que Laravel trate este campo como booleano verdadero/falso automáticamente
     protected $casts = [
         'ISCC' => 'boolean',

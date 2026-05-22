@@ -6,12 +6,10 @@ use App\Models\Movimiento;
 use App\Models\ColaEspera;
 use App\Models\TipoVehiculo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB; // <-- Importamos la fachada de Base de Datos
 
 class MovimientoController extends Controller
 {
-    /**
-     * Muestra el panel general de movimientos
-     */
     public function index()
     {
         $vehiculosDentro = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
@@ -27,17 +25,19 @@ class MovimientoController extends Controller
         return view('movimientos.index', compact('vehiculosDentro', 'vehiculosDespachados'));
     }
 
-    /**
-     * ACCIÓN CRÍTICA: Dar acceso físico al vehículo al plantel desde la cola de espera
-     */
     public function darAcceso($id)
     {
-        // 1. Obtener los datos del vehículo que está afuera en la cola
         $itemCola = ColaEspera::findOrFail($id);
+
+        // PROTECCIÓN ADICIONAL: Si por alguna razón el vehículo ya fue ingresado, evitar re-procesar
+        if ($itemCola->Estado === 'Ingresado') {
+            return redirect()->route('cola-espera.index')
+                ->withErrors(['duplicado' => 'Este vehículo ya ha sido ingresado al plantel.']);
+        }
+
         $tipoVehiculo = $itemCola->tipoVehiculo;
         $nombreTipo = $tipoVehiculo->Nombre ?? 'Camion';
 
-        // 2. Definir límites estrictos del plantel
         $maximos = [
             'Carritos'  => 10,
             'Camion'    => 5,
@@ -47,40 +47,52 @@ class MovimientoController extends Controller
 
         $limiteMaximo = $maximos[$nombreTipo] ?? 5;
 
-        // 3. Contar cuántos de ese mismo tipo ya están adentro
         $actualesDentro = Movimiento::where('ID_TipoVehiculo', $itemCola->ID_TipoVehiculo)
             ->whereIn('Estado', ['En Plantel', 'Descargando'])
             ->count();
 
-        // 4. Protección del Backend por si intentan saltarse el bloqueo del botón
         if ($actualesDentro >= $limiteMaximo) {
             return redirect()->route('cola-espera.index')
                 ->withErrors(['cupo' => 'No se puede dar acceso. El cupo para la categoría ' . $nombreTipo . ' está lleno.']);
         }
 
-        // 5. Trasladar oficialmente al plantel (Crear Movimiento)
-        Movimiento::create([
-            'Placa' => $itemCola->Placa,
-            'Estado' => 'En Plantel',
-            'ID_TipoVehiculo' => $itemCola->ID_TipoVehiculo,
-            'ID_NombreConductor' => $itemCola->ID_NombreConductor,
-            'ID_NombreProductor' => $itemCola->ID_NombreProductor,
-            'ID_Origen' => $itemCola->ID_Origen,
-            'ISCC' => $itemCola->ISCC,
-            'HoraEntrada' => now(),
-            'Usuario_Autoriza' => auth()->id() ?? 1
-        ]);
+        $fechaUniversal = now()->format('Ymd H:i:s');
 
-        // 6. Sacar de la cola exterior cambiándole el estado
-        $itemCola->Estado = 'Ingresado';
-        $itemCola->save();
+        // BLINDAJE CON TRANSACCIÓN: Se ejecuta todo o no se ejecuta nada
+        DB::beginTransaction();
 
-        return redirect()->route('cola-espera.index')->with('exito', '¡Vehículo autorizado! Ha ingresado formalmente al plantel.');
+        try {
+            // 1. Crear Movimiento
+            Movimiento::create([
+                'Placa' => $itemCola->Placa,
+                'Estado' => 'En Plantel',
+                'ID_TipoVehiculo' => $itemCola->ID_TipoVehiculo,
+                'ID_NombreConductor' => $itemCola->ID_NombreConductor,
+                'ID_NombreProductor' => $itemCola->ID_NombreProductor,
+                'ID_Origen' => $itemCola->ID_Origen,
+                'ISCC' => $itemCola->ISCC ?? 0,
+                'HoraEntrada' => $fechaUniversal,
+                'Usuario_Autoriza' => auth()->id() ?? 1
+            ]);
+
+            // 2. Sacar de la cola exterior
+            $itemCola->Estado = 'Ingresado';
+            $itemCola->save();
+
+            // Si todo salió bien, guardamos los cambios definitivamente
+            DB::commit();
+
+            return redirect()->route('cola-espera.index')->with('exito', '¡Vehículo autorizado! Ha ingresado formalmente al plantel.');
+
+        } catch (\Exception $e) {
+            // Si algo falla en cualquiera de los dos pasos, deshacemos todo lo que se hizo en la BD
+            DB::rollBack();
+
+            return redirect()->route('cola-espera.index')
+                ->withErrors(['error' => 'Ocurrió un error al procesar el ingreso: ' . $e->getMessage()]);
+        }
     }
 
-    /**
-     * Muestra el panel operativo de Rampa
-     */
     public function rampaIndex()
     {
         $vehiculosEnRampa = Movimiento::with(['tipoVehiculo', 'conductor', 'productor', 'origen'])
@@ -91,9 +103,6 @@ class MovimientoController extends Controller
         return view('movimientos.rampa', compact('vehiculosEnRampa'));
     }
 
-    /**
-     * Cambia el estado a "Descargando"
-     */
     public function iniciarDescarga($id)
     {
         $movimiento = Movimiento::findOrFail($id);
@@ -103,9 +112,6 @@ class MovimientoController extends Controller
         return redirect()->route('movimientos.rampa')->with('exito', 'Descarga iniciada para la placa ' . $movimiento->Placa);
     }
 
-    /**
-     * Despacha el vehículo (Libera cupo inmediatamente en el plantel)
-     */
     public function despacharVehiculo($id)
     {
         $movimiento = Movimiento::findOrFail($id);
